@@ -86,3 +86,71 @@ class TestBACENComplianceReporter:
         content = output_file.read_text()
         assert "BACEN" in content
         assert "Resolução" in content
+
+    def test_high_risk_assessment(self):
+        """Test high risk classification."""
+        import pandas as pd
+
+        # Create biased data
+        X, y = make_classification(n_samples=200, n_features=5, random_state=42)
+        # Create biased protected attribute
+        protected_attr = ([0] * 50 + [1] * 50) + ([0] * 50 + [1] * 50)
+        y[:50] = 1  # Bias: group 0 gets more positive outcomes
+
+        model = RandomForestClassifier(n_estimators=10, random_state=42)
+        model.fit(X, y)
+
+        data = pd.DataFrame(X)
+        data["gender"] = protected_attr
+        data["target"] = y
+
+        report = audit(model, X, y, sensitive_attrs=data["gender"])
+        reporter = BACENComplianceReporter(report)
+        compliance_data = reporter.generate_report()
+
+        risk_assessment = compliance_data["risco_modelo"]
+
+        # Should detect issues
+        assert "nivel_risco" in risk_assessment
+        assert "requer_acao_imediata" in risk_assessment
+
+    def test_medium_risk_assessment(self):
+        """Test medium risk classification."""
+        import pandas as pd
+
+        # Create slightly biased data
+        X, y = make_classification(n_samples=200, n_features=5, random_state=99)
+        protected_attr = [0] * 100 + [1] * 100
+
+        model = RandomForestClassifier(n_estimators=10, random_state=99)
+        model.fit(X, y)
+
+        data = pd.DataFrame(X)
+        data["gender"] = protected_attr
+        data["target"] = y
+
+        report = audit(model, X, y, sensitive_attrs=data["gender"])
+        reporter = BACENComplianceReporter(report)
+        compliance_data = reporter.generate_report()
+
+        assert "risco_modelo" in compliance_data
+        assert "fairness_assessment" in compliance_data
+
+    def test_mitigation_actions(self, fairness_report):
+        """Test mitigation actions generation."""
+        reporter = BACENComplianceReporter(fairness_report)
+        compliance_data = reporter.generate_report()
+
+        assert "fairness_assessment" in compliance_data
+        assert "ações_mitigacao" in compliance_data["fairness_assessment"]
+        assert isinstance(compliance_data["fairness_assessment"]["ações_mitigacao"], list)
+        assert len(compliance_data["fairness_assessment"]["ações_mitigacao"]) > 0
+
+    def test_recommendations(self, fairness_report):
+        """Test recommendations generation."""
+        reporter = BACENComplianceReporter(fairness_report)
+        compliance_data = reporter.generate_report()
+
+        assert "recomendacoes" in compliance_data
+        assert isinstance(compliance_data["recomendacoes"], list)
+        assert len(compliance_data["recomendacoes"]) > 0

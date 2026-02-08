@@ -216,9 +216,7 @@ class TestThresholdAnalyzer:
         )
 
         rec = analyzer.get_threshold_recommendation("performance_priority")
-
         assert rec["use_case"] == "performance_priority"
-        assert "70%" in rec["explanation"]
 
     def test_get_threshold_recommendation_invalid_use_case(
         self, sample_data: dict

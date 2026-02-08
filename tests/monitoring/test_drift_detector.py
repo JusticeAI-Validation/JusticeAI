@@ -123,6 +123,119 @@ class TestFairnessDriftDetector:
         assert "severity" in summary
         assert "message" in summary
 
+    def test_detect_psi_method(self, baseline_metrics: dict[str, float]):
+        """Test drift detection using PSI method."""
+        detector = FairnessDriftDetector(baseline_metrics, method="psi", threshold=0.1)
+
+        # New metrics with moderate change
+        new_metrics = {
+            "statistical_parity": 0.75,
+            "equal_opportunity": 0.92,
+            "predictive_parity": 0.88,
+        }
+
+        result = detector.detect(new_metrics)
+
+        assert result.method == "psi"
+        assert isinstance(result, DriftResult)
+        # PSI should detect drift for large changes
+        assert "drift_scores" in result.__dict__
+
+    def test_detect_psi_with_drift(self, baseline_metrics: dict[str, float]):
+        """Test PSI drift detection with significant change."""
+        detector = FairnessDriftDetector(baseline_metrics, method="psi", threshold=0.05)
+
+        # Significant change in metrics
+        new_metrics = {
+            "statistical_parity": 0.50,  # Large change
+            "equal_opportunity": 0.92,
+            "predictive_parity": 0.88,
+        }
+
+        result = detector.detect(new_metrics)
+
+        assert result.has_drift is True
+        assert len(result.drifted_metrics) > 0
+
+    def test_detect_ks_method(self, baseline_metrics: dict[str, float]):
+        """Test drift detection using KS method."""
+        detector = FairnessDriftDetector(baseline_metrics, method="ks", threshold=0.1)
+
+        new_metrics = {
+            "statistical_parity": 0.75,
+            "equal_opportunity": 0.92,
+            "predictive_parity": 0.88,
+        }
+
+        result = detector.detect(new_metrics)
+
+        assert result.method == "ks"
+        assert isinstance(result, DriftResult)
+
+    def test_detect_ks_with_drift(self, baseline_metrics: dict[str, float]):
+        """Test KS drift detection with significant change."""
+        detector = FairnessDriftDetector(baseline_metrics, method="ks", threshold=0.1)
+
+        # Large change
+        new_metrics = {
+            "statistical_parity": 0.50,
+            "equal_opportunity": 0.50,
+            "predictive_parity": 0.50,
+        }
+
+        result = detector.detect(new_metrics)
+
+        assert result.has_drift is True
+        assert len(result.drifted_metrics) > 0
+
+    def test_drift_severity_high(self, baseline_metrics: dict[str, float]):
+        """Test high severity drift classification."""
+        detector = FairnessDriftDetector(baseline_metrics, threshold=0.1)
+
+        # Very large drift
+        new_metrics = {
+            "statistical_parity": 0.50,
+            "equal_opportunity": 0.50,
+            "predictive_parity": 0.50,
+        }
+
+        result = detector.detect(new_metrics)
+        summary = detector.get_drift_summary(result)
+
+        assert summary["severity"] == "high"
+
+    def test_drift_severity_medium(self, baseline_metrics: dict[str, float]):
+        """Test medium severity drift classification."""
+        detector = FairnessDriftDetector(baseline_metrics, threshold=0.1)
+
+        # Moderate drift
+        new_metrics = {
+            "statistical_parity": 0.80,
+            "equal_opportunity": 0.92,
+            "predictive_parity": 0.88,
+        }
+
+        result = detector.detect(new_metrics)
+        summary = detector.get_drift_summary(result)
+
+        assert summary["severity"] in ["medium", "high"]
+
+    def test_drift_severity_low(self, baseline_metrics: dict[str, float]):
+        """Test low severity drift classification."""
+        detector = FairnessDriftDetector(baseline_metrics, threshold=0.05)
+
+        # Small drift
+        new_metrics = {
+            "statistical_parity": 0.89,
+            "equal_opportunity": 0.92,
+            "predictive_parity": 0.88,
+        }
+
+        result = detector.detect(new_metrics)
+        summary = detector.get_drift_summary(result)
+
+        assert summary["severity"] in ["low", "medium", "none"]
+
 
 class TestMetricsDriftMonitor:
     """Tests for MetricsDriftMonitor class."""
@@ -199,3 +312,21 @@ class TestMetricsDriftMonitor:
         assert "statistical_parity" in trends
         assert "equal_opportunity" in trends
         assert len(trends["statistical_parity"]) == 3
+
+    def test_monitor_with_psi_method(self, baseline_metrics: dict[str, float]):
+        """Test monitor using PSI detection method."""
+        monitor = MetricsDriftMonitor(baseline_metrics, method="psi", threshold=0.1)
+
+        metrics = {"statistical_parity": 0.75, "equal_opportunity": 0.92}
+        result = monitor.add_observation(metrics)
+
+        assert result.method == "psi"
+
+    def test_monitor_with_ks_method(self, baseline_metrics: dict[str, float]):
+        """Test monitor using KS detection method."""
+        monitor = MetricsDriftMonitor(baseline_metrics, method="ks", threshold=0.1)
+
+        metrics = {"statistical_parity": 0.75, "equal_opportunity": 0.92}
+        result = monitor.add_observation(metrics)
+
+        assert result.method == "ks"

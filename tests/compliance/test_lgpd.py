@@ -74,3 +74,29 @@ class TestLGPDComplianceReporter:
         content = output_file.read_text()
         assert "LGPD" in content
         assert "Lei Geral de Proteção de Dados" in content
+
+    def test_recommendations_with_issues(self):
+        """Test recommendations when issues are found."""
+        import pandas as pd
+
+        # Create biased data
+        X, y = make_classification(n_samples=200, n_features=5, random_state=42)
+        protected_attr = [0] * 100 + [1] * 100
+        y[:80] = 1  # Strong bias
+
+        model = RandomForestClassifier(n_estimators=10, random_state=42)
+        model.fit(X, y)
+
+        data = pd.DataFrame(X)
+        data["gender"] = protected_attr
+        data["target"] = y
+
+        report = audit(model, X, y, sensitive_attrs=data["gender"])
+        reporter = LGPDComplianceReporter(report)
+        compliance_data = reporter.generate_report()
+
+        assert "recomendacoes" in compliance_data
+        recommendations = compliance_data["recomendacoes"]
+        assert isinstance(recommendations, list)
+        # Should have recommendations about mitigation
+        assert any("ATENÇÃO" in rec or "problema" in rec for rec in recommendations)
