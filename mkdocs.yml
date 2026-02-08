@@ -1,0 +1,100 @@
+site_name: JusticeAI
+site_description: Fairness Analysis for ML in Production
+site_author: Gustavo Haase
+site_url: https://justiceai-validation.github.io/JusticeAI/
+
+repo_name: JusticeAI-Validation/JusticeAI
+repo_url: https://github.com/JusticeAI-Validation/JusticeAI
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            members_order: source
+            heading_level: 2
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Basic Concepts: getting-started/concepts.md
+  - User Guide:
+    - Overview: guide/overview.md
+    - Fairness Metrics: guide/metrics.md
+    - Creating Reports: guide/reports.md
+    - Model Adapters: guide/adapters.md
+    - Compliance: guide/compliance.md
+  - Tutorials:
+    - tutorials/index.md
+    - Quick Start Tutorial: tutorials/01_quickstart.md
+    - Advanced Metrics: tutorials/02_advanced_metrics.md
+    - Report Customization: tutorials/03_reports.md
+  - API Reference:
+    - api/index.md
+  - FAQ: faq.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/JusticeAI-Validation/JusticeAI
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/justiceai/
+
+copyright: Copyright &copy; 2026 Gustavo Haase
