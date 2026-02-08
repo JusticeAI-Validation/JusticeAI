@@ -79,12 +79,16 @@ class BACENComplianceReporter:
             'Modelo de Classificação Binária'
         """
         # Extract data from fairness report
-        result = self.fairness_report.fairness_result
+        summary = self.fairness_report.get_summary()
+        issues = self.fairness_report.get_issues()
+        metrics_data = self.fairness_report.metrics
+
+        num_issues = len(issues) if issues else 0
 
         # 1. Identificação do Modelo
         self.compliance_data["identificacao_modelo"] = {
             "tipo": "Modelo de Classificação Binária",
-            "framework": self._get_model_type(),
+            "framework": "Classificador ML",
             "finalidade": "Apoio à decisão automatizada",
             "data_validacao": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
             "versao_avaliacao": "1.0",
@@ -92,9 +96,9 @@ class BACENComplianceReporter:
 
         # 2. Validação do Modelo
         self.compliance_data["validacao_modelo"] = {
-            "metricas_calculadas": len(result.metrics),
-            "atributos_sensíveis_analisados": result.protected_attrs,
-            "grupos_avaliados": self._get_analyzed_groups(),
+            "metricas_calculadas": len(metrics_data) if metrics_data else 0,
+            "atributos_sensíveis_analisados": list(summary.get("by_group", {}).keys()) if summary else [],
+            "grupos_avaliados": summary.get("by_group", {}) if summary else {},
             "metodologia": "Análise de Fairness com múltiplas métricas",
         }
 
@@ -107,140 +111,56 @@ class BACENComplianceReporter:
         }
 
         # 4. Risco do Modelo
-        self.compliance_data["risco_modelo"] = self._assess_model_risk()
+        self.compliance_data["risco_modelo"] = self._assess_model_risk(num_issues)
 
         # 5. Monitoramento
         self.compliance_data["monitoramento"] = {
-            "metricas_monitoradas": self._get_monitored_metrics(),
+            "metricas_monitoradas": list(metrics_data.keys()) if metrics_data else [],
             "alertas_configurados": self._get_alert_configuration(),
             "frequencia_monitoramento": "Contínuo",
         }
 
         # 6. Fairness Assessment
         self.compliance_data["fairness_assessment"] = {
-            "disparidades_identificadas": self._identify_disparities(),
-            "nivel_risco_fairness": self._assess_fairness_risk(),
-            "ações_mitigacao": self._suggest_mitigation_actions(),
+            "disparidades_identificadas": issues if issues else [],
+            "nivel_risco_fairness": self._assess_fairness_risk(num_issues),
+            "ações_mitigacao": self._suggest_mitigation_actions(num_issues),
         }
 
         # 7. Recomendações
-        self.compliance_data["recomendacoes"] = self._generate_recommendations()
+        self.compliance_data["recomendacoes"] = self._generate_recommendations(num_issues)
 
         return self.compliance_data
 
-    def _get_model_type(self) -> str:
-        """Get model framework/type."""
-        result = self.fairness_report.fairness_result
-        if hasattr(result, "model"):
-            return type(result.model).__name__
-        return "Classificador ML"
-
-    def _get_analyzed_groups(self) -> dict[str, list[str]]:
-        """Get list of analyzed groups per protected attribute."""
-        result = self.fairness_report.fairness_result
-        groups = {}
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                groups[attr] = list(result.metrics[attr].keys())
-
-        return groups
-
-    def _assess_model_risk(self) -> dict[str, Any]:
+    def _assess_model_risk(self, num_issues: int) -> dict[str, Any]:
         """Assess model risk according to BACEN criteria."""
-        disparities = self._identify_disparities()
-
-        # Risk classification based on number and severity of disparities
-        num_high_severity = sum(
-            1 for d in disparities if d.get("severidade") == "Alta"
-        )
-        num_medium_severity = sum(
-            1 for d in disparities if d.get("severidade") == "Média"
-        )
+        # Risk classification based on number of issues
+        num_high_severity = num_issues  # Simplified
+        num_medium_severity = 0
 
         if num_high_severity > 0:
             risk_level = "ALTO"
             risk_description = (
-                f"{num_high_severity} disparidade(s) de alta severidade identificada(s)"
+                f"{num_high_severity} problema(s) de fairness identificado(s)"
             )
         elif num_medium_severity > 0:
             risk_level = "MÉDIO"
             risk_description = (
-                f"{num_medium_severity} disparidade(s) de média severidade identificada(s)"
+                f"{num_medium_severity} problema(s) de fairness identificado(s)"
             )
         else:
             risk_level = "BAIXO"
-            risk_description = "Nenhuma disparidade crítica identificada"
+            risk_description = "Nenhum problema crítico identificado"
 
         return {
             "nivel_risco": risk_level,
             "descricao": risk_description,
-            "total_disparidades": len(disparities),
+            "total_disparidades": num_issues,
             "disparidades_alta_severidade": num_high_severity,
             "disparidades_media_severidade": num_medium_severity,
             "requer_acao_imediata": num_high_severity > 0,
         }
 
-    def _identify_disparities(self) -> list[dict[str, Any]]:
-        """Identify disparities exceeding fairness thresholds."""
-        result = self.fairness_report.fairness_result
-        disparities = []
-
-        threshold = 0.8  # 80% rule for fairness
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                for group, group_metrics in result.metrics[attr].items():
-                    # Check statistical parity
-                    if "statistical_parity" in group_metrics:
-                        sp_ratio = group_metrics["statistical_parity"]
-                        if sp_ratio < threshold:
-                            disparities.append(
-                                {
-                                    "atributo": attr,
-                                    "grupo": group,
-                                    "metrica": "Statistical Parity",
-                                    "valor": sp_ratio,
-                                    "threshold": threshold,
-                                    "desvio": threshold - sp_ratio,
-                                    "severidade": "Alta"
-                                    if sp_ratio < 0.6
-                                    else "Média",
-                                }
-                            )
-
-                    # Check equal opportunity
-                    if "equal_opportunity" in group_metrics:
-                        eo_ratio = group_metrics["equal_opportunity"]
-                        if eo_ratio < threshold:
-                            disparities.append(
-                                {
-                                    "atributo": attr,
-                                    "grupo": group,
-                                    "metrica": "Equal Opportunity",
-                                    "valor": eo_ratio,
-                                    "threshold": threshold,
-                                    "desvio": threshold - eo_ratio,
-                                    "severidade": "Alta"
-                                    if eo_ratio < 0.6
-                                    else "Média",
-                                }
-                            )
-
-        return disparities
-
-    def _get_monitored_metrics(self) -> list[str]:
-        """Get list of metrics being monitored."""
-        result = self.fairness_report.fairness_result
-
-        # Collect all unique metric names
-        metric_names = set()
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                for group_metrics in result.metrics[attr].values():
-                    metric_names.update(group_metrics.keys())
-
-        return sorted(list(metric_names))
 
     def _get_alert_configuration(self) -> dict[str, Any]:
         """Get alert configuration for monitoring."""
@@ -255,58 +175,36 @@ class BACENComplianceReporter:
             "canais_notificacao": ["Email", "Dashboard", "API"],
         }
 
-    def _assess_fairness_risk(self) -> str:
+    def _assess_fairness_risk(self, num_issues: int) -> str:
         """Assess overall fairness risk level."""
-        disparities = self._identify_disparities()
-
-        num_high_severity = sum(
-            1 for d in disparities if d.get("severidade") == "Alta"
-        )
-
-        if num_high_severity > 0:
+        if num_issues > 2:
             return "ALTO"
-        elif len(disparities) > 0:
+        elif num_issues > 0:
             return "MÉDIO"
         else:
             return "BAIXO"
 
-    def _suggest_mitigation_actions(self) -> list[str]:
+    def _suggest_mitigation_actions(self, num_issues: int) -> list[str]:
         """Suggest mitigation actions for identified risks."""
-        disparities = self._identify_disparities()
         actions = []
 
-        if not disparities:
+        if num_issues == 0:
             actions.append(
                 "Manter monitoramento contínuo das métricas de fairness"
             )
             return actions
 
-        # Specific actions based on disparities
-        has_statistical_parity_issue = any(
-            d["metrica"] == "Statistical Parity" for d in disparities
+        actions.append(
+            "Revisar processo de coleta de dados para garantir "
+            "representatividade dos grupos"
         )
-        has_equal_opportunity_issue = any(
-            d["metrica"] == "Equal Opportunity" for d in disparities
+        actions.append(
+            "Considerar técnicas de re-balanceamento de dados (oversampling/undersampling)"
         )
-
-        if has_statistical_parity_issue:
-            actions.append(
-                "Revisar processo de coleta de dados para garantir "
-                "representatividade dos grupos"
-            )
-            actions.append(
-                "Considerar técnicas de re-balanceamento de dados (oversampling/undersampling)"
-            )
-
-        if has_equal_opportunity_issue:
-            actions.append(
-                "Avaliar features que podem estar correlacionadas com "
-                "atributos protegidos"
-            )
-            actions.append(
-                "Considerar técnicas de fairness-aware learning durante treinamento"
-            )
-
+        actions.append(
+            "Avaliar features que podem estar correlacionadas com "
+            "atributos protegidos"
+        )
         actions.append(
             "Implementar sistema de monitoramento contínuo para detectar drift"
         )
@@ -319,9 +217,9 @@ class BACENComplianceReporter:
 
         return actions
 
-    def _generate_recommendations(self) -> list[str]:
+    def _generate_recommendations(self, num_issues: int) -> list[str]:
         """Generate BACEN compliance recommendations."""
-        risk_assessment = self._assess_model_risk()
+        risk_level = "ALTO" if num_issues > 2 else "MÉDIO" if num_issues > 0 else "BAIXO"
 
         recommendations = [
             "Manter documentação completa do modelo conforme Resolução BACEN 4.658/2018",
@@ -330,7 +228,7 @@ class BACENComplianceReporter:
             "Manter registro de todas as avaliações para fins de auditoria",
         ]
 
-        if risk_assessment["nivel_risco"] == "ALTO":
+        if risk_level == "ALTO":
             recommendations.insert(
                 0,
                 "⚠️ AÇÃO URGENTE: Risco ALTO identificado. "
@@ -339,7 +237,7 @@ class BACENComplianceReporter:
             recommendations.append(
                 "Considerar suspensão do modelo até mitigação dos riscos identificados"
             )
-        elif risk_assessment["nivel_risco"] == "MÉDIO":
+        elif risk_level == "MÉDIO":
             recommendations.insert(
                 0, "Risco MÉDIO: Implementar plano de mitigação no curto prazo."
             )
@@ -374,7 +272,7 @@ class BACENComplianceReporter:
     def _generate_html(self) -> str:
         """Generate HTML content for BACEN compliance report."""
         # Start with fairness report HTML
-        base_html = self.fairness_report.to_html()
+        base_html = self.fairness_report.render_html()
 
         # Add BACEN compliance section
         compliance_section = self._create_compliance_section_html()

@@ -75,7 +75,11 @@ class LGPDComplianceReporter:
             'Sistema de apoio à decisão usando Machine Learning...'
         """
         # Extract data from fairness report
-        result = self.fairness_report.fairness_result
+        summary = self.fairness_report.get_summary()
+        issues = self.fairness_report.get_issues()
+
+        # Get metrics data
+        metrics_data = self.fairness_report.metrics
 
         # 1. Transparência Algorítmica
         self.compliance_data["transparencia_algoritmica"] = {
@@ -83,183 +87,45 @@ class LGPDComplianceReporter:
                 "Sistema de apoio à decisão usando Machine Learning "
                 "para classificação binária."
             ),
-            "tipo_modelo": self._get_model_type(),
-            "atributos_protegidos": result.protected_attrs,
-            "grupos_analisados": self._get_analyzed_groups(),
+            "tipo_modelo": "Classificador Binário",
+            "atributos_protegidos": list(summary.get("by_group", {}).keys()) if summary else [],
+            "grupos_analisados": summary.get("by_group", {}) if summary else {},
             "data_avaliacao": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
         # 2. Critérios de Decisão
         self.compliance_data["criterios_decisao"] = {
-            "metricas_performance": self._get_performance_metrics(),
-            "metricas_fairness": self._get_fairness_metrics_summary(),
-            "threshold_decisao": getattr(result, "threshold", 0.5),
+            "metricas_performance": summary.get("overall", {}) if summary else {},
+            "metricas_fairness": summary.get("by_group", {}) if summary else {},
+            "threshold_decisao": 0.5,
         }
 
         # 3. Avaliação de Fairness
+        num_issues = len(issues) if issues else 0
         self.compliance_data["avaliacao_fairness"] = {
-            "metricas_calculadas": list(result.metrics.keys()),
-            "total_metricas": len(result.metrics),
-            "grupos_comparados": self._get_group_comparisons(),
-            "disparidades_identificadas": self._identify_disparities(),
+            "metricas_calculadas": list(metrics_data.keys()) if metrics_data else [],
+            "total_metricas": len(metrics_data) if metrics_data else 0,
+            "grupos_comparados": list(summary.get("by_group", {}).keys()) if summary else [],
+            "disparidades_identificadas": issues if issues else [],
         }
 
         # 4. Grupos Protegidos
-        self.compliance_data["grupos_protegidos"] = self._analyze_protected_groups()
+        self.compliance_data["grupos_protegidos"] = summary.get("by_group", {}) if summary else {}
 
         # 5. Métricas de Bias
-        self.compliance_data["metricas_bias"] = self._summarize_bias_metrics()
+        self.compliance_data["metricas_bias"] = {
+            "total_atributos_protegidos": len(summary.get("by_group", {})) if summary else 0,
+            "total_disparidades": num_issues,
+            "metricas_por_atributo": summary.get("by_group", {}) if summary else {},
+        }
 
         # 6. Recomendações
-        self.compliance_data["recomendacoes"] = self._generate_recommendations()
+        self.compliance_data["recomendacoes"] = self._generate_recommendations(num_issues)
 
         return self.compliance_data
 
-    def _get_model_type(self) -> str:
-        """Get model type description."""
-        result = self.fairness_report.fairness_result
-        if hasattr(result, "model"):
-            return type(result.model).__name__
-        return "Classificador Binário"
-
-    def _get_analyzed_groups(self) -> dict[str, list[str]]:
-        """Get list of analyzed groups per protected attribute."""
-        result = self.fairness_report.fairness_result
-        groups = {}
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                groups[attr] = list(result.metrics[attr].keys())
-
-        return groups
-
-    def _get_performance_metrics(self) -> dict[str, float]:
-        """Get overall performance metrics."""
-        result = self.fairness_report.fairness_result
-        metrics = {}
-
-        # Try to extract overall metrics if available
-        if hasattr(result, "overall_metrics"):
-            metrics = result.overall_metrics
-
-        return metrics
-
-    def _get_fairness_metrics_summary(self) -> dict[str, dict[str, float]]:
-        """Get summary of fairness metrics per protected attribute."""
-        result = self.fairness_report.fairness_result
-        summary = {}
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                attr_metrics = {}
-                for group, group_metrics in result.metrics[attr].items():
-                    # Get key fairness metrics
-                    if "statistical_parity" in group_metrics:
-                        attr_metrics[f"{group}_statistical_parity"] = group_metrics[
-                            "statistical_parity"
-                        ]
-                    if "equal_opportunity" in group_metrics:
-                        attr_metrics[f"{group}_equal_opportunity"] = group_metrics[
-                            "equal_opportunity"
-                        ]
-
-                summary[attr] = attr_metrics
-
-        return summary
-
-    def _get_group_comparisons(self) -> list[str]:
-        """Get list of group comparisons performed."""
-        result = self.fairness_report.fairness_result
-        comparisons = []
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                groups = list(result.metrics[attr].keys())
-                comparisons.append(f"{attr}: {' vs '.join(groups)}")
-
-        return comparisons
-
-    def _identify_disparities(self) -> list[dict[str, Any]]:
-        """Identify disparities exceeding fairness thresholds."""
-        result = self.fairness_report.fairness_result
-        disparities = []
-
-        threshold = 0.8  # 80% rule for fairness
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                for group, group_metrics in result.metrics[attr].items():
-                    # Check statistical parity
-                    if "statistical_parity" in group_metrics:
-                        sp_ratio = group_metrics["statistical_parity"]
-                        if sp_ratio < threshold:
-                            disparities.append(
-                                {
-                                    "atributo": attr,
-                                    "grupo": group,
-                                    "metrica": "Statistical Parity",
-                                    "valor": sp_ratio,
-                                    "threshold": threshold,
-                                    "severidade": "Alta"
-                                    if sp_ratio < 0.6
-                                    else "Média",
-                                }
-                            )
-
-        return disparities
-
-    def _analyze_protected_groups(self) -> dict[str, dict[str, Any]]:
-        """Analyze protected groups in detail."""
-        result = self.fairness_report.fairness_result
-        groups_analysis = {}
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                groups_analysis[attr] = {}
-                for group, group_metrics in result.metrics[attr].items():
-                    groups_analysis[attr][group] = {
-                        "metricas_disponiveis": list(group_metrics.keys()),
-                        "total_metricas": len(group_metrics),
-                        "principais_metricas": {
-                            k: v
-                            for k, v in group_metrics.items()
-                            if k
-                            in [
-                                "statistical_parity",
-                                "equal_opportunity",
-                                "predictive_parity",
-                            ]
-                        },
-                    }
-
-        return groups_analysis
-
-    def _summarize_bias_metrics(self) -> dict[str, Any]:
-        """Summarize bias metrics across all groups."""
-        result = self.fairness_report.fairness_result
-        summary = {
-            "total_atributos_protegidos": len(result.protected_attrs),
-            "total_grupos_analisados": 0,
-            "metricas_por_atributo": {},
-        }
-
-        for attr in result.protected_attrs:
-            if attr in result.metrics:
-                num_groups = len(result.metrics[attr])
-                summary["total_grupos_analisados"] += num_groups
-                summary["metricas_por_atributo"][attr] = {
-                    "grupos": num_groups,
-                    "metricas_calculadas": len(
-                        next(iter(result.metrics[attr].values()), {})
-                    ),
-                }
-
-        return summary
-
-    def _generate_recommendations(self) -> list[str]:
+    def _generate_recommendations(self, num_issues: int) -> list[str]:
         """Generate compliance recommendations."""
-        disparities = self._identify_disparities()
-
         recommendations = [
             "Documentar e revisar periodicamente as métricas de fairness do modelo.",
             "Manter registro de todas as avaliações de fairness para auditoria.",
@@ -269,9 +135,9 @@ class LGPDComplianceReporter:
             ),
         ]
 
-        if disparities:
+        if num_issues > 0:
             recommendations.append(
-                f"ATENÇÃO: {len(disparities)} disparidade(s) identificada(s). "
+                f"ATENÇÃO: {num_issues} problema(s) de fairness identificado(s). "
                 "Considerar intervenções de mitigação de viés."
             )
             recommendations.append(
@@ -313,7 +179,7 @@ class LGPDComplianceReporter:
     def _generate_html(self) -> str:
         """Generate HTML content for LGPD compliance report."""
         # Start with fairness report HTML
-        base_html = self.fairness_report.to_html()
+        base_html = self.fairness_report.render_html()
 
         # Add LGPD compliance section
         compliance_section = self._create_compliance_section_html()
