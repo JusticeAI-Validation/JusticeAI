@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JusticeAI - Fairness Report</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: #f9fafb;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f3f4f6;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-success { color: #10b981; }
+        .status-warning { color: #f59e0b; }
+        .status-critical { color: #ef4444; }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+        }
+
+        .section h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #111827;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .chart-container {
+            margin: 20px 0;
+        }
+
+        .issue-card {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 6px;
+        }
+
+        .issue-card.warning {
+            background: #fffbeb;
+            border-color: #f59e0b;
+        }
+
+        .issue-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+
+        .recommendation-card {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 6px;
+        }
+
+        .recommendation-card.high {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+
+        .recommendation-card.medium {
+            background: #fffbeb;
+            border-color: #f59e0b;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-warning {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .badge-critical {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        @media print {
+            body { background: white; }
+            .section, .summary-card { box-shadow: none; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🤖 JusticeAI Fairness Report</h1>
+            <p>Comprehensive Fairness Analysis for Machine Learning Models</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Generated: {{ timestamp }}</p>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="summary-card">
+            <h2>Executive Summary</h2>
+            <div class="summary-grid">
+                <div class="metric-box">
+                    <div class="metric-label">Overall Score</div>
+                    <div class="metric-value status-{{ 'success' if summary.passes_fairness else 'critical' }}">
+                        {{ "%.1f"|format(summary.overall_score) }}/100
+                    </div>
+                    <span class="badge badge-{{ 'success' if summary.passes_fairness else 'critical' }}">
+                        {{ '✓ Pass' if summary.passes_fairness else '✗ Fail' }}
+                    </span>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Violations</div>
+                    <div class="metric-value status-{{ 'success' if summary.n_violations == 0 else 'critical' }}">
+                        {{ summary.n_violations }}
+                    </div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Disparate Impact</div>
+                    <div class="metric-value status-{{ 'success' if summary.disparate_impact_ratio >= 0.8 else 'critical' }}">
+                        {{ "%.2f"|format(summary.disparate_impact_ratio) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overall Fairness Gauge -->
+        {% if charts.overall_gauge %}
+        <div class="section">
+            <h2>Overall Fairness Assessment</h2>
+            <div class="chart-container" id="chart-overall-gauge"></div>
+        </div>
+        {% endif %}
+
+        <!-- Key Metrics -->
+        <div class="section">
+            <h2>Key Fairness Metrics</h2>
+            {% if charts.metrics_overview %}
+            <div class="chart-container" id="chart-metrics-overview"></div>
+            {% endif %}
+
+            {% if charts.disparate_impact_gauge %}
+            <h3 style="margin-top: 30px;">Disparate Impact (80% Rule)</h3>
+            <div class="chart-container" id="chart-disparate-impact"></div>
+            {% endif %}
+
+            {% if charts.statistical_parity_bar %}
+            <h3 style="margin-top: 30px;">Statistical Parity</h3>
+            <div class="chart-container" id="chart-statistical-parity"></div>
+            {% endif %}
+        </div>
+
+        <!-- Confusion Matrices -->
+        {% if charts.confusion_matrix %}
+        <div class="section">
+            <h2>Confusion Matrices by Group</h2>
+            <div class="chart-container" id="chart-confusion-matrix"></div>
+        </div>
+        {% endif %}
+
+        <!-- Threshold Analysis -->
+        {% if charts.threshold_tradeoff %}
+        <div class="section">
+            <h2>Threshold Analysis</h2>
+            <p style="margin-bottom: 20px; color: #6b7280;">
+                Explore the trade-off between fairness and performance across different decision thresholds.
+            </p>
+            <div class="chart-container" id="chart-threshold-tradeoff"></div>
+        </div>
+        {% endif %}
+
+        <!-- Critical Issues -->
+        {% if issues %}
+        <div class="section">
+            <h2>⚠️ Critical Issues & Warnings</h2>
+            {% for issue in issues %}
+            <div class="issue-card {{ 'warning' if issue.severity == 'warning' else '' }}">
+                <div class="issue-title">
+                    {{ '🔴' if issue.severity == 'critical' else '⚠️' }} {{ issue.metric }}
+                </div>
+                <p><strong>Issue:</strong> {{ issue.message }}</p>
+                <p><strong>Impact:</strong> {{ issue.impact }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Recommendations -->
+        {% if recommendations %}
+        <div class="section">
+            <h2>💡 Recommendations</h2>
+            {% for rec in recommendations %}
+            <div class="recommendation-card {{ rec.priority }}">
+                <div class="issue-title">
+                    <span class="badge badge-{{ rec.priority }}">{{ rec.priority }}</span>
+                    {{ rec.action }}
+                </div>
+                <p>{{ rec.description }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Generated by <a href="https://github.com/JusticeAI-Validation/JusticeAI" target="_blank">JusticeAI</a></p>
+            <p>Advanced Fairness Analysis for Responsible AI</p>
+        </div>
+    </div>
+
+    <!-- JavaScript to render charts -->
+    <script>
+        // Chart data
+        const charts = {{ charts_json|safe }};
+
+        // Render each chart
+        {% if charts.overall_gauge %}
+        Plotly.newPlot('chart-overall-gauge', JSON.parse(charts.overall_gauge).data, JSON.parse(charts.overall_gauge).layout, {responsive: true});
+        {% endif %}
+
+        {% if charts.metrics_overview %}
+        Plotly.newPlot('chart-metrics-overview', JSON.parse(charts.metrics_overview).data, JSON.parse(charts.metrics_overview).layout, {responsive: true});
+        {% endif %}
+
+        {% if charts.disparate_impact_gauge %}
+        Plotly.newPlot('chart-disparate-impact', JSON.parse(charts.disparate_impact_gauge).data, JSON.parse(charts.disparate_impact_gauge).layout, {responsive: true});
+        {% endif %}
+
+        {% if charts.statistical_parity_bar %}
+        Plotly.newPlot('chart-statistical-parity', JSON.parse(charts.statistical_parity_bar).data, JSON.parse(charts.statistical_parity_bar).layout, {responsive: true});
+        {% endif %}
+
+        {% if charts.confusion_matrix %}
+        Plotly.newPlot('chart-confusion-matrix', JSON.parse(charts.confusion_matrix).data, JSON.parse(charts.confusion_matrix).layout, {responsive: true});
+        {% endif %}
+
+        {% if charts.threshold_tradeoff %}
+        Plotly.newPlot('chart-threshold-tradeoff', JSON.parse(charts.threshold_tradeoff).data, JSON.parse(charts.threshold_tradeoff).layout, {responsive: true});
+        {% endif %}
+    </script>
+</body>
+</html>
