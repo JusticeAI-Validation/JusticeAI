@@ -1,0 +1,107 @@
+[project]
+name = "justiceai"
+version = "0.1.0"
+description = "Fairness analysis for ML in production - LGPD/BACEN compliance"
+authors = [
+    {name = "Gustavo Haase",email = "gustavo.haase@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy (>=2.4.2,<3.0.0)",
+    "pandas (>=3.0.0,<4.0.0)",
+    "scikit-learn (>=1.8.0,<2.0.0)",
+    "scipy (>=1.17.0,<2.0.0)",
+    "plotly (>=6.5.2,<7.0.0)",
+    "jinja2 (>=3.1.6,<4.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.2"
+pytest-cov = "^7.0.0"
+black = "^26.1.0"
+ruff = "^0.15.0"
+mypy = "^1.19.1"
+pylint = "^4.0.4"
+isort = "^7.0.0"
+pre-commit = "^4.5.1"
+
+
+[tool.poetry.group.docs.dependencies]
+mkdocs-material = "^9.7.1"
+mkdocstrings-python = "^2.0.1"
+
+
+# Black
+[tool.black]
+line-length = 88
+target-version = ['py311', 'py312']
+
+# isort
+[tool.isort]
+profile = "black"
+line_length = 88
+
+# MyPy
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = [
+    "--verbose",
+    "--cov=justiceai",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+# Coverage
+[tool.coverage.run]
+source = ["justiceai"]
+omit = ["*/tests/*"]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+fail_under = 90
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+# Ruff
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["S101", "ARG001"]
+
+# Pylint
+[tool.pylint.main]
+py-version = "3.11"
+jobs = 0
+
+[tool.pylint.format]
+max-line-length = 88
