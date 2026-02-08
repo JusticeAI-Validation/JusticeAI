@@ -229,3 +229,99 @@ class TestConfusionMatrixByGroup:
             + result["A"]["FN"]
             == 3
         )
+
+
+class TestAdvancedMetrics:
+    """Tests for advanced post-training metrics."""
+
+    def test_false_negative_rate_difference(self) -> None:
+        """Test FNR difference calculation."""
+        from justiceai.core.metrics.posttrain import false_negative_rate_difference
+
+        y_true = np.array([1, 1, 1, 1])
+        y_pred = np.array([1, 0, 1, 1])
+        sensitive = pd.Series(["A", "A", "B", "B"])
+
+        result = false_negative_rate_difference(y_true, y_pred, sensitive)
+
+        # Group A: FNR = 1/2 = 0.5
+        # Group B: FNR = 0/2 = 0.0
+        assert result["by_group"]["A"]["fnr"] == pytest.approx(0.5, abs=1e-5)
+        assert result["by_group"]["B"]["fnr"] == pytest.approx(0.0, abs=1e-5)
+        assert result["difference"] == pytest.approx(0.5, abs=1e-5)
+
+    def test_predictive_parity(self) -> None:
+        """Test predictive parity (PPV equality)."""
+        from justiceai.core.metrics.posttrain import predictive_parity
+
+        y_true = np.array([1, 1, 0, 0])
+        y_pred = np.array([1, 1, 1, 0])
+        sensitive = pd.Series(["A", "A", "B", "B"])
+
+        result = predictive_parity(y_true, y_pred, sensitive)
+
+        # Group A: PPV = 2/2 = 1.0
+        # Group B: PPV = 0/1 = 0.0
+        assert result["by_group"]["A"]["ppv"] == pytest.approx(1.0, abs=1e-5)
+        assert result["by_group"]["B"]["ppv"] == pytest.approx(0.0, abs=1e-5)
+
+    def test_negative_predictive_parity(self) -> None:
+        """Test negative predictive parity (NPV equality)."""
+        from justiceai.core.metrics.posttrain import negative_predictive_parity
+
+        y_true = np.array([1, 1, 0, 0])
+        y_pred = np.array([0, 1, 0, 0])
+        sensitive = pd.Series(["A", "A", "B", "B"])
+
+        result = negative_predictive_parity(y_true, y_pred, sensitive)
+
+        # Group A: NPV = 0/1 = 0.0 (TN=0, FN=1)
+        # Group B: NPV = 2/2 = 1.0 (TN=2, FN=0)
+        assert result["by_group"]["A"]["npv"] == pytest.approx(0.0, abs=1e-5)
+        assert result["by_group"]["B"]["npv"] == pytest.approx(1.0, abs=1e-5)
+
+    def test_accuracy_difference(self) -> None:
+        """Test accuracy difference across groups."""
+        from justiceai.core.metrics.posttrain import accuracy_difference
+
+        y_true = np.array([1, 1, 0, 0])
+        y_pred = np.array([1, 1, 0, 0])
+        sensitive = pd.Series(["A", "A", "B", "B"])
+
+        result = accuracy_difference(y_true, y_pred, sensitive)
+
+        # Both groups: 100% accuracy
+        assert result["by_group"]["A"]["accuracy"] == pytest.approx(1.0, abs=1e-5)
+        assert result["by_group"]["B"]["accuracy"] == pytest.approx(1.0, abs=1e-5)
+        assert result["difference"] == pytest.approx(0.0, abs=1e-5)
+        assert result["is_fair"]
+
+    def test_treatment_equality(self) -> None:
+        """Test treatment equality (FN/FP ratio)."""
+        from justiceai.core.metrics.posttrain import treatment_equality
+
+        y_true = np.array([1, 1, 0, 0])
+        y_pred = np.array([0, 1, 1, 0])
+        sensitive = pd.Series(["A", "A", "B", "B"])
+
+        result = treatment_equality(y_true, y_pred, sensitive)
+
+        # Group A: FN=1, FP=1, ratio=1.0
+        # Group B: FN=0, FP=0, ratio=1.0
+        assert "A" in result["by_group"]
+        assert "B" in result["by_group"]
+
+    def test_calibration_by_group(self) -> None:
+        """Test calibration calculation."""
+        from justiceai.core.metrics.posttrain import calibration_by_group
+
+        y_true = np.array([1, 0, 1, 0, 1, 0, 1, 0])
+        y_proba = np.array([0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4])
+        sensitive = pd.Series(["A", "A", "A", "A", "B", "B", "B", "B"])
+
+        result = calibration_by_group(y_true, y_proba, sensitive, n_bins=5)
+
+        assert "A" in result["by_group"]
+        assert "B" in result["by_group"]
+        assert "expected_calibration_error" in result["by_group"]["A"]
+        assert result["by_group"]["A"]["expected_calibration_error"] >= 0
