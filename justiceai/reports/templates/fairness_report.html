@@ -199,7 +199,7 @@
                 <div class="metric-box">
                     <div class="metric-label">Overall Score</div>
                     <div class="metric-value status-{{ 'success' if summary.passes_fairness else 'critical' }}">
-                        {{ "%.1f"|format(summary.overall_score) }}/100
+                        {{ "%.1f"|format(summary.overall_score|default(0.0)) }}/100
                     </div>
                     <span class="badge badge-{{ 'success' if summary.passes_fairness else 'critical' }}">
                         {{ '✓ Pass' if summary.passes_fairness else '✗ Fail' }}
@@ -208,13 +208,13 @@
                 <div class="metric-box">
                     <div class="metric-label">Violations</div>
                     <div class="metric-value status-{{ 'success' if summary.n_violations == 0 else 'critical' }}">
-                        {{ summary.n_violations }}
+                        {{ summary.n_violations|default(0) }}
                     </div>
                 </div>
                 <div class="metric-box">
                     <div class="metric-label">Disparate Impact</div>
-                    <div class="metric-value status-{{ 'success' if summary.disparate_impact_ratio >= 0.8 else 'critical' }}">
-                        {{ "%.2f"|format(summary.disparate_impact_ratio) }}
+                    <div class="metric-value status-{{ 'success' if summary.get('disparate_impact_ratio', 1.0) >= 0.8 else 'critical' }}">
+                        {{ "%.2f"|format(summary.get('disparate_impact_ratio', 1.0)) }}
                     </div>
                 </div>
             </div>
