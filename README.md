@@ -1,9 +1,9 @@
 # ⚖️ justiceai
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/coverage-82%25-green)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-192%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-214%20passing-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
@@ -56,6 +56,53 @@ report.save_html('fairness_report.html')  # Salva para compartilhar
 
 **Output**: Relatório HTML standalone com Plotly interativo, pronto para apresentar ao board.
 
+### 🇧🇷 Compliance LGPD/BACEN
+
+```python
+from justiceai import audit
+from justiceai.compliance import LGPDComplianceReporter, BACENComplianceReporter
+
+# Executar auditoria de fairness
+report = audit(model, X, y, sensitive_attrs)
+
+# Gerar relatório LGPD (Art. 20)
+lgpd_reporter = LGPDComplianceReporter(report)
+lgpd_reporter.save_html('lgpd_compliance.html')
+
+# Gerar relatório BACEN (Res. 4.658)
+bacen_reporter = BACENComplianceReporter(report)
+compliance_data = bacen_reporter.generate_report()
+print(f"Risco do Modelo: {compliance_data['risco_modelo']['nivel_risco']}")
+```
+
+### 📈 Monitoring em Produção
+
+```python
+from justiceai.monitoring import (
+    FairnessDriftDetector,
+    FairnessAlerting,
+    ConsoleAlertChannel
+)
+
+# Estabelecer baseline
+baseline_metrics = {'statistical_parity': 0.95, 'equal_opportunity': 0.92}
+
+# Configurar detector
+detector = FairnessDriftDetector(baseline_metrics, threshold=0.10)
+
+# Configurar alertas
+alerting = FairnessAlerting()
+alerting.add_channel('console', ConsoleAlertChannel())
+
+# Monitorar novos dados
+new_metrics = {'statistical_parity': 0.75, 'equal_opportunity': 0.90}
+drift_result = detector.detect(new_metrics)
+
+if drift_result.has_drift:
+    print(f"⚠️ Drift detectado: {list(drift_result.drifted_metrics.keys())}")
+    alerting.send_drift_alert(drift_result, detector)
+```
+
 ---
 
 ## 📦 Instalação
@@ -106,7 +153,7 @@ pytest
 
 ### 🇧🇷 Compliance Brasil
 - **LGPD Art. 20**: Template pronto para direito à explicação
-- **BACEN Res. 4.658**: Análise de risco de modelo (em breve)
+- **BACEN Res. 4.658**: Análise de risco de modelo
 - **Português nativo**: Relatórios e erros em PT-BR
 
 ### 🔌 Framework-Agnostic
@@ -118,10 +165,10 @@ Funciona com:
 - ⏳ **TensorFlow** (em breve)
 - ⏳ **ONNX** (em breve)
 
-### 📈 Monitoring em Produção (em breve)
-- **Drift Detection**: Detecta degradação de fairness ao longo do tempo
-- **Alerting**: Slack/Email quando métricas violam thresholds
-- **Integração CI/CD**: Bloqueia deploy se fairness < threshold
+### 📈 Monitoring em Produção
+- **Drift Detection**: Detecta degradação de fairness ao longo do tempo (threshold, PSI, KS test)
+- **Alerting**: Slack/Email/Webhook quando métricas violam thresholds
+- **Continuous Monitoring**: Histórico, tendências e alertas automáticos
 
 ---
 
