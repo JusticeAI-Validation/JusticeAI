@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 
-from justiceai.core.adapters import SklearnAdapter, create_adapter
+from justiceai.core.adapters import SklearnAdapter, create_adapter, is_model_supported
 
 
 class TestSklearnAdapter:
@@ -132,3 +132,48 @@ class TestSklearnAdapter:
         original_proba = trained_model.predict_proba(X)[:, 1]
 
         np.testing.assert_array_almost_equal(adapter_proba, original_proba)
+
+    def test_model_with_predict_method(self, sample_data: tuple) -> None:
+        """Test adapter fallback for any model with predict method."""
+        X, y = sample_data
+
+        # Create a minimal model with predict method
+        class CustomModel:
+            def fit(self, X, y):
+                self.classes_ = np.unique(y)
+                return self
+
+            def predict(self, X):
+                return np.zeros(len(X), dtype=int)
+
+        model = CustomModel()
+        model.fit(X, y)
+
+        # Should work with create_adapter fallback
+        adapter = create_adapter(model)
+        predictions = adapter.predict(X)
+
+        assert len(predictions) == len(X)
+
+    def test_is_model_supported_sklearn(
+        self, trained_model: RandomForestClassifier
+    ) -> None:
+        """Test is_model_supported with sklearn model."""
+        assert is_model_supported(trained_model) is True
+
+    def test_is_model_supported_invalid(self) -> None:
+        """Test is_model_supported with invalid model."""
+
+        class InvalidModel:
+            pass
+
+        assert is_model_supported(InvalidModel()) is False
+
+    def test_create_adapter_unsupported_model(self) -> None:
+        """Test create_adapter with unsupported model."""
+
+        class UnsupportedModel:
+            pass
+
+        with pytest.raises(ValueError, match="must have a 'predict' method"):
+            create_adapter(UnsupportedModel())
